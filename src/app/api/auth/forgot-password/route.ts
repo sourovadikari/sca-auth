@@ -8,7 +8,6 @@ import {
 } from "@/utils/token";
 import { sendEmail } from "@/lib/mailer";
 import { passwordResetTemplate } from "@/templates/passwordReset";
-import { emailVerifiedTemplate } from "@/templates/verificationConfirmed";
 
 export async function POST(req: Request) {
   try {
@@ -32,14 +31,6 @@ export async function POST(req: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
-    }
-
-    let emailJustVerified = false;
-
-    // ✅ If user is not verified, mark verified and send “Email Verified” email
-    if (!user.emailVerified) {
-      user.emailVerified = true;
-      emailJustVerified = true;
     }
 
     // 🧩 Check if token already exists and is still valid
@@ -85,19 +76,6 @@ export async function POST(req: Request) {
       // Token still valid — reuse existing link
       message =
         "🕓 A password reset link has already been sent earlier. Please check your inbox.";
-    }
-
-    // ✉️ If we just verified their email, send confirmation email
-    if (emailJustVerified) {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: "Your Email Has Been Verified",
-          html: emailVerifiedTemplate(user.fullName || user.username || user.email),
-        });
-      } catch (err) {
-        console.error("Failed to send 'email verified' email:", err);
-      }
     }
 
     return NextResponse.json({ message }, { status: 200 });
