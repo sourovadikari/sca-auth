@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db";
 import { User } from "@/models/User";
-import { generateToken, generateTokenExpiry } from "@/utils/token";
+import {
+  generateToken,
+  generateTokenExpiry,
+  isTokenExpired,
+} from "@/utils/token";
 import { sendEmail } from "@/lib/mailer";
 import { passwordResetTemplate } from "@/templates/passwordReset";
 
@@ -20,7 +24,7 @@ export async function POST(req: Request) {
 
     const cleanId = identifier.toLowerCase().trim();
 
-    // Find user by email OR username
+    // 🔍 Find user by email OR username
     const user = await User.findOne({
       $or: [{ email: cleanId }, { username: cleanId }],
     });
@@ -29,33 +33,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
-    // Generate new reset token and expiry
-    const resetToken = generateToken();
-    const resetExpiry = generateTokenExpiry();
+    // ✅ If user is not verified, verify them now (optional, but recommended)
+    if (!user.emailVerified) {
+      user.emailVerified = true;
+    }
 
-    // Update user document with reset token info and timestamp
-    user.verificationToken = resetToken;
-    user.verificationTokenExpiry = resetExpiry;
-    user.verificationTokenPurpose = "password-reset";
+    // 🧩 Check if token already exists and is still valid
+    const tokenIsExpired =
+      !user.verificationToken ||
+      !user.verificationTokenExpiry ||
+      isTokenExpired(user.verificationTokenExpiry);
 
-    await user.save();
+    let message = "";
 
-    // Compose password reset URL
-    const resetUrl = `${
-      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    }/new-password?email=${encodeURIComponent(user.email)}&token=${encodeURIComponent(resetToken)}`;
+    if (tokenIsExpired || user.verificationTokenPurpose !== "password-reset") {
+      // ⏰ Generate a new token and expiry (5 minutes)
+      const newToken = generateToken();
+      const newExpiry = generateTokenExpiry(5);
 
-    // Send password reset email
-    await sendEmail({
-      to: user.email,
-      subject: "Reset Your Password",
-      html: passwordResetTemplate(user.fullName || user.email, resetUrl),
-    });
+      user.verificationToken = newToken;
+      user.verificationTokenExpiry = newExpiry;
+      user.verificationTokenPurpose = "password-reset";
 
-    return NextResponse.json(
-      { message: "Password reset link has been sent." },
-      { status: 200 }
-    );
+      await user.save();
+
+      // Compose reset URL
+      const resetUrl = `${
+        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+      }/new-password?email=${encodeURIComponent(
+        user.email
+      )}&token=${encodeURIComponent(newToken)}`;
+
+      // Send email
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Reset Your Password",
+          html: passwordResetTemplate(user.fullName || user.email, resetUrl),
+        });
+      } catch (err) {
+        console.error("Failed to send password reset email:", err);
+      }
+
+      message =
+        "✅ A new password reset link has been sent to your email. Please check your inbox.";
+    } else {
+      // Token still valid, no need to generate new one
+      message =
+        "🕓 A password reset link has already been sent earlier. Please check your inbox.";
+    }
+
+    return NextResponse.json({ message }, { status: 200 });
   } catch (err) {
     console.error("Forgot password error:", err);
     return NextResponse.json(
