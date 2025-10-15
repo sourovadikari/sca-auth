@@ -96,7 +96,7 @@ function NewPasswordForm() {
   useEffect(() => {
     if (status === "success") {
       if (redirectTimer <= 0) {
-        router.push("/signin");
+        router.push("/login");
         return;
       }
 
