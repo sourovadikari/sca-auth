@@ -24,53 +24,49 @@ type FormValues = {
 
 export default function ForgotPasswordPage() {
   const [popupOpen, setPopupOpen] = useState(false);
-  const [popupMessage, setPopupMessage] = useState<string>("");
+  const [popupTitle, setPopupTitle] = useState("");
+  const [popupMessage, setPopupMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<FormValues>({
-    defaultValues: {
-      identifier: "",
-    },
+    defaultValues: { identifier: "" },
   });
 
-  // 🔒 Lock scroll when popup is open
+  // 🔒 Lock scroll when modal is open
   useEffect(() => {
-    if (popupOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = popupOpen ? "hidden" : "";
   }, [popupOpen]);
 
-  async function sendResetLink(identifier: string) {
+  async function onSubmit(data: FormValues) {
+    setIsLoading(true);
     setPopupOpen(false);
     setPopupMessage("");
-    setIsLoading(true);
 
     try {
       const response = await axios.post("/api/auth/forgot-password", {
-        identifier,
+        identifier: data.identifier,
       });
 
-      setPopupMessage(
-        response.data.message ||
-          "Verification link sent successfully. Please check your email."
+      const msg: string = response.data.message || "Check your email inbox.";
+      setPopupTitle(
+        msg.includes("already")
+          ? "Link Already Sent"
+          : "Password Reset Link Sent"
       );
+      setPopupMessage(msg);
       setPopupOpen(true);
       form.reset();
     } catch (error: unknown) {
       const err = error as AxiosError<{ error: string }>;
-      setPopupMessage(
-        err.response?.data?.error || err.message || "An error occurred."
-      );
+      const errorMessage =
+        err.response?.data?.error || "Something went wrong. Please try again.";
+
+      setPopupTitle("Error");
+      setPopupMessage(errorMessage);
       setPopupOpen(true);
     } finally {
       setIsLoading(false);
     }
-  }
-
-  async function onSubmit(data: FormValues) {
-    await sendResetLink(data.identifier);
   }
 
   return (
@@ -117,7 +113,7 @@ export default function ForgotPasswordPage() {
                     Sending...
                   </>
                 ) : (
-                  "Send Verification Link"
+                  "Send Reset Link"
                 )}
               </Button>
             </form>
@@ -126,7 +122,7 @@ export default function ForgotPasswordPage() {
           {/* Navigation Links */}
           <div className="mt-6 flex justify-between text-sm text-gray-600 dark:text-gray-400">
             <Link
-              href="/login"
+              href="/signin"
               className="text-primary hover:underline dark:text-blue-400"
             >
               ← Back to Login
@@ -141,7 +137,7 @@ export default function ForgotPasswordPage() {
         </div>
       </div>
 
-      {/* Animated Popup */}
+      {/* ✨ Animated Popup Modal */}
       <AnimatePresence>
         {popupOpen && (
           <motion.div
@@ -161,8 +157,13 @@ export default function ForgotPasswordPage() {
               transition={{ duration: 0.25 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="text-gray-800 dark:text-gray-100">{popupMessage}</p>
-              <div className="mt-4 flex justify-end">
+              <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-white">
+                {popupTitle}
+              </h2>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
+                {popupMessage}
+              </p>
+              <div className="flex justify-end">
                 <Button onClick={() => setPopupOpen(false)}>Close</Button>
               </div>
             </motion.div>
