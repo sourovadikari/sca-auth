@@ -122,7 +122,7 @@ export default function ForgotPasswordPage() {
           {/* Navigation Links */}
           <div className="mt-6 flex justify-between text-sm text-gray-600 dark:text-gray-400">
             <Link
-              href="/signin"
+              href="/login"
               className="text-primary hover:underline dark:text-blue-400"
             >
               ← Back to Login
