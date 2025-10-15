@@ -8,6 +8,7 @@ import {
 } from "@/utils/token";
 import { sendEmail } from "@/lib/mailer";
 import { passwordResetTemplate } from "@/templates/passwordReset";
+import { emailVerifiedTemplate } from "@/templates/verificationConfirmed";
 
 export async function POST(req: Request) {
   try {
@@ -33,9 +34,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
     }
 
-    // ✅ If user is not verified, verify them now (optional, but recommended)
+    let emailJustVerified = false;
+
+    // ✅ If user is not verified, mark verified and send “Email Verified” email
     if (!user.emailVerified) {
       user.emailVerified = true;
+      emailJustVerified = true;
     }
 
     // 🧩 Check if token already exists and is still valid
@@ -47,7 +51,7 @@ export async function POST(req: Request) {
     let message = "";
 
     if (tokenIsExpired || user.verificationTokenPurpose !== "password-reset") {
-      // ⏰ Generate a new token and expiry (5 minutes)
+      // ⏰ Generate a new token and expiry (e.g. 5 minutes)
       const newToken = generateToken();
       const newExpiry = generateTokenExpiry(5);
 
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
         user.email
       )}&token=${encodeURIComponent(newToken)}`;
 
-      // Send email
+      // ✉️ Send password reset email
       try {
         await sendEmail({
           to: user.email,
@@ -78,9 +82,22 @@ export async function POST(req: Request) {
       message =
         "✅ A new password reset link has been sent to your email. Please check your inbox.";
     } else {
-      // Token still valid, no need to generate new one
+      // Token still valid — reuse existing link
       message =
         "🕓 A password reset link has already been sent earlier. Please check your inbox.";
+    }
+
+    // ✉️ If we just verified their email, send confirmation email
+    if (emailJustVerified) {
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "Your Email Has Been Verified",
+          html: emailVerifiedTemplate(user.fullName || user.username || user.email),
+        });
+      } catch (err) {
+        console.error("Failed to send 'email verified' email:", err);
+      }
     }
 
     return NextResponse.json({ message }, { status: 200 });
