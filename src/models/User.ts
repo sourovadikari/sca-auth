@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 export type Role = "user" | "admin";
 
 export interface IUser extends Document {
-  _id: Types.ObjectId; // explicitly add _id type
+  _id: Types.ObjectId;
   fullName: string;
   email: string;
   username: string;
@@ -38,7 +38,7 @@ const UserSchema: Schema<IUser> = new Schema(
 UserSchema.index(
   { createdAt: 1 },
   {
-    expireAfterSeconds: 120, // 24 hours = 60 * 60 * 24
+    expireAfterSeconds: 86400, // 24 hours = 60 * 60 * 24
     partialFilterExpression: { emailVerified: false },
   }
 );
