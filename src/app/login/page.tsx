@@ -157,7 +157,7 @@ export default function SignInClient() {
 
           <CardContent className="p-8">
             {/* Social Buttons */}
-            <div className="flex gap-4 mb-6">
+            <div className="flex gap-4 mb-6 flex-col sm:flex-row">
               <Button
                 variant="outline"
                 className="flex-1 flex items-center gap-2 justify-center"
