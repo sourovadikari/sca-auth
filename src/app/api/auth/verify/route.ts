@@ -6,9 +6,6 @@ import { sendEmail } from "@/lib/mailer";
 import { emailVerifiedTemplate } from "@/templates/verificationConfirmed";
 
 export async function GET(req: Request) {
-  const response: { message?: string; error?: string } = {};
-  let status = 200;
-
   try {
     const { searchParams } = new URL(req.url);
     const email = searchParams.get("email")?.toLowerCase().trim();
@@ -26,7 +23,7 @@ export async function GET(req: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
-    } 
+    }
 
     if (
       user.verificationToken !== token ||
@@ -56,9 +53,15 @@ export async function GET(req: Request) {
       console.error("Verification confirmation email failed:", err)
     );
 
-    return NextResponse.json({ message: "Email successfully verified." }, { status: 200 });
+    return NextResponse.json(
+      { message: "Email successfully verified." },
+      { status: 200 }
+    );
   } catch (err) {
     console.error("Verification error:", err);
-    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 }
+    );
   }
 }
