@@ -6,76 +6,54 @@ import { sendEmail } from "@/lib/mailer";
 import { emailVerificationTemplate } from "@/templates/emailVerification";
 
 export async function POST(req: Request) {
-try {
-const body = await req.json();
-const { fullName, email, username, password } = body;
+  try {
+    const { fullName, email, username, password } = await req.json();
 
-if (!fullName || !email || !username || !password) {  
-  return NextResponse.json(  
-    { error: "Missing required fields" },  
-    { status: 400 }  
-  );  
-}  
+    if (!fullName || !email || !username || !password) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
 
-const emailSanitized = email.toLowerCase().trim();  
-const usernameSanitized = username.toLowerCase().trim();  
+    await connectToDatabase();
 
-await connectToDatabase();  
+    const emailSanitized = email.toLowerCase().trim();
+    const usernameSanitized = username.toLowerCase().trim();
 
-const emailExists = await User.findOne({ email: emailSanitized });  
-if (emailExists) {  
-  return NextResponse.json(  
-    { error: "Email already in use" },  
-    { status: 409 }  
-  );  
-}  
+    const existingUser = await User.findOne({
+      $or: [{ email: emailSanitized }, { username: usernameSanitized }],
+    });
 
-const usernameExists = await User.findOne({ username: usernameSanitized });  
-if (usernameExists) {  
-  return NextResponse.json(  
-    { error: "Username already taken" },  
-    { status: 409 }  
-  );  
-}  
+    if (existingUser) {
+      const error = existingUser.email === emailSanitized
+        ? "Email already in use"
+        : "Username already taken";
+      return NextResponse.json({ error }, { status: 409 });
+    }
 
-// Generate verification token and expiry  
-const token = generateToken();  
-const tokenExpiry = generateTokenExpiry();  
+    const token = generateToken();
 
-const newUser = new User({  
-  fullName,  
-  email: emailSanitized,  
-  username: usernameSanitized,  
-  password, // hashed in pre-save hook  
-  role: "user",  
-  emailVerified: false,  
-  verificationToken: token,  
-  verificationTokenExpiry: tokenExpiry,  
-  verificationTokenPurpose: "signup",  
-});  
+    await User.create({
+      fullName,
+      email: emailSanitized,
+      username: usernameSanitized,
+      password, // hashed in pre-save hook
+      role: "user",
+      emailVerified: false,
+      verificationToken: token,
+      verificationTokenExpiry: generateTokenExpiry(),
+      verificationTokenPurpose: "signup",
+    });
 
-await newUser.save();  
+    const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/verify?email=${encodeURIComponent(emailSanitized)}&token=${encodeURIComponent(token)}`;
 
-// Create verification URL  
-const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify?email=${encodeURIComponent(emailSanitized)}&token=${token}`;  
+    await sendEmail({
+      to: emailSanitized,
+      subject: "Verify Your Email",
+      html: emailVerificationTemplate(fullName || usernameSanitized, verificationUrl),
+    });
 
-// Send verification email  
-await sendEmail({  
-  to: emailSanitized,  
-  subject: "Verify Your Email",  
-  html: emailVerificationTemplate(fullName || usernameSanitized, verificationUrl),  
-});  
-
-return NextResponse.json(  
-  { message: "User created. Verification email sent." },  
-  { status: 201 }  
-);
-
-} catch (error) {
-console.error("Signup error:", error);
-return NextResponse.json(
-{ error: "Internal server error" },
-{ status: 500 }
-);
-}
+    return NextResponse.json({ message: "User created. Verification email sent." }, { status: 201 });
+  } catch (error) {
+    console.error("Signup error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
